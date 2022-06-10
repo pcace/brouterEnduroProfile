@@ -38,11 +38,27 @@
 
 ---context:global   # following code refers to global config
 
+
+# Kinematic model parameters (travel time computation)
+assign totalMass  = 210     # %totalMass% | Mass (in kg) of the bike + biker, for travel time computation | number
+assign maxSpeed   = 60    # %maxSpeed% | Absolute maximum speed (in km/h), for travel time computation | number
+assign S_C_x      = 0.225  # %S_C_x% | Drag coefficient times the reference area (in m^2), for travel time computation | number
+assign C_r        = 0.01   # %C_r% | Rolling resistance coefficient (dimensionless), for travel time computation | number
+assign bikerPower = 30000    # %bikerPower% | Average power (in W) provided by the biker, for travel time computation | number
+
+
+# Turn instructions settings
+assign turnInstructionMode          = 1     # %turnInstructionMode% | Mode for the generated turn instructions | [0=none, 1=auto-choose, 2=locus-style, 3=osmand-style, 4=comment-style, 5=gpsies-style, 6=orux-style]
+assign turnInstructionCatchingRange = 40    # %turnInstructionCatchingRange% | Within this distance (in m) several turning instructions are combined into one and the turning angles are better approximated to the general direction | number
+assign turnInstructionRoundabouts   = false  # %turnInstructionRoundabouts% | Set to "false" to avoid generating special turning instructions for roundabouts | boolean
+
+
+
 #
 #=============== Profil ANPASSEN ==================
 #
 assign MglLegal 	0	# 1 setzen, um möglichst legale Wege zu bevorzugen
-assign Abgeschieden 0	# 1 setzen, für Endurowandern in kaum erschlossenen Gegenden 
+assign Abgeschieden 1	# 1 setzen, für Endurowandern in kaum erschlossenen Gegenden 
 
 #
 # ==================================================
@@ -73,10 +89,15 @@ assign pass2coefficient -1		# Berrechnugscoeffizient für zweite exakte Berrechn
 # schon Steigungen bestrafen? Also 0 Strafpunkte. Steigungen werden erst
 # ab 10m Steigungsstreckenlänge berücksichtigt. Negative Werte wirken nicht.
 #
-assign downhillcost 0
-assign downhillcutoff 1.5
-assign uphillcost 0
-assign uphillcutoff 1.5
+# Change elevation parameters
+assign consider_elevation = false # %consider_elevation% | Set to false to ignore elevation in routing | boolean
+assign downhillcost       = 60    # %downhillcost% | Cost for going downhill | number
+assign downhillcutoff     = 1.5   # %downhillcutoff% | Gradients below this value in percents are not counted. | number
+assign uphillcost         = 0     # %uphillcost% | Cost for going uphill | number
+assign uphillcutoff       = 1.5   # %uphillcutoff% | Gradients below this value in percents are not counted.  | number
+
+assign downhillcost       = if consider_elevation then downhillcost else 0
+assign uphillcost         = if consider_elevation then uphillcost else 0
 
 assign elevationmaxbuffer 10
 
@@ -110,9 +131,9 @@ assign defaultaccess 0
 
 assign WegeAlle
 	# Die Kosten werden pro Meter Wegstrecke erechnet.
-	# Sie werden abe rnicht addiert, sondenr brouter steigt aus diesem
+	# Sie werden abe rnicht addiert, sondern brouter steigt aus diesem
 	# Abschnitt aus, sobald eine Bedingung wahr wird.
-	# => Spezielle Eeigenchaften eines Weges müssen oben stehen, sonst
+	# => Spezielle Eigenchaften eines Weges müssen oben stehen, sonst
 	# kommen sie nicht zur Geltung.
 	# => Allgemeime Angaben - etwa: Asphaltoberfläche - würden dazu führen,
 	# dass alle asphaltierten Wege gleich gewichtet werden, also Autobahnen
@@ -158,11 +179,11 @@ assign WegeAlle
 		# verzeichnet, wenn doch, ist sie meist aussagekräftiger als tracktype,
 		# daher zuvor auswerten:
 		#
-		switch or surface=paved or surface=cobblestone or surface=concrete surface=asphalt 3.5
+		switch or surface=paved or surface=cobblestone or surface=concrete surface=asphalt 5.5
 		switch surface=gravel 3.0
 		switch or surface=pebblestone surface=fine_gravel 2.5
 		switch or surface=ground or surface=dirt surface=earth or surface=grass 0.5
-		switch surface=sand 1.2
+		switch surface=sand 0.2
 		# 
 		# wenn all das nicht zutrifft, dann entscheiden wir nach Tracktype.
 		# Grundsätzlich bevorzuge ich schlechte Wege, je nach Gegend sind die Wege
@@ -172,9 +193,9 @@ assign WegeAlle
 		#		
 		# Entsprechend der Gegend werden weiter unten Zusatzkosten addiert.
 		#
-		switch tracktype=grade1  3.0
-		switch tracktype=grade2  2.5
-		switch tracktype=grade3  1.5
+		switch tracktype=grade1  5.0
+		switch tracktype=grade2  4.5
+		switch tracktype=grade3  2.5
 		switch tracktype=grade4  1.1
 		switch tracktype=grade5  1.0
 		# alle sonstigen Tracks:
@@ -188,17 +209,7 @@ assign WegeAlle
     switch and highway=path foot=designated 	50   	
 	switch highway=cycleway						15
 	switch and highway=path bicycle=designated 	25 
-	
-	
-	#
-	#
-	# Naturschutzgebiete ausschließen
-	#
-	#
-	#switch boundary=protected_area 500
-	
-	
-	
+		
 	#
 	# Die folgenden Werte für Pfade passen so für erschlossene Gegenden,
 	# weil es hier meist Fußwege sind, die ich eher nicht befahren
@@ -218,7 +229,7 @@ assign WegeAlle
 		# Oberflächen:
     	switch or surface=paved or surface=cobblestone or surface=concrete surface=asphalt 10 		
 		switch or surface=gravel or surface=pebblestone surface=fine_gravel 6.0							 
-		switch or surface=sand or surface=ground or surface=dirt or surface=earth surface=grass 4.5	
+		switch or surface=sand or surface=ground or surface=dirt or surface=earth surface=grass 2.5	
 		#
 		# sonstige Pfade (Zusatzkosten unten beachten!)
 		0
@@ -273,7 +284,7 @@ assign Zusatzkosten switch Abgeschieden
 	# Kosten für Pfade in gut erschlossenen Gegenden addieren, da man sie dort 
 	# eher seltener nutzen sollte:
 	#
-	switch highway=path 			6.0
+		switch highway=path 			6.0
 	0 		# fuer Sonstiges nichts addieren
 #
 # ... und der Variablen "Zusatzkosten" zugewiesen.
