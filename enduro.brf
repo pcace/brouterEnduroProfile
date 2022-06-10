@@ -1,0 +1,341 @@
+# Erklärung der Operatoren:
+# 	http://brouter.de/brouter/profile_developers_guide.txt
+# Test der Datei: 
+#	http://brouter.de/brouter-web/
+#	Unter "Data csv" kann man sich die zur Berechnung herangezogenen
+# 	Parameter und OSM-Tacks anschauen. 
+#	Die Versionen von Brouter scheinen aber nicht immer gleich,
+# 	daher unbedingt auch am dem Handy testen. Insbesondere sind einige
+#	OSM-Tacks nicht jeder Version bekannt. Was ausgewertet wird, steht 
+# 	in der Datei "lookups.dat"
+#
+# Bezeichnung der Wege entnimmt man am besten dem Bearbeitungsmodus 
+# 	aus https://www.openstreetmap.org/
+#
+# ---------------------------------------------------------------------
+#
+# Grundsätzlich berechnet diese Profildatei die "Kosten" für ein Wegstück in
+# Punkten. Bestimmte Eigenschaften eines Weges verursachen solche Kosten.
+# Wie hoch die Kosten jeweils sind, legt das Profil in Form von 
+# addierten Strafpunkten fest. Wege verursachen Kosten pro Meter, 
+# deshalb müssen die Strafpunkte absolut gesehen gering angesetzt werden.
+# Einmalige oder seltene Eigenschaften wie Treppen, Fähren, Verbotsschilder,
+# Sackgassen ... müssen mit hohen Punkten angesetzt werden, damit sie eine 
+# Wirkung haben.
+# Der Kostenfaktor muss möglichst nahe bei 1 sein für die Art von Wegen, 
+# die man sucht, weil sonst durch die Art der Berechnungsmethode das 
+# "Suchgebiet" zu gross wird und die Berchnung dann zu lange dauert. 
+# Und er darf nicht kleiner als 1 sein, weil sonst die Berechnung nicht 
+# mehr funktioniert.
+# Die Gesamtkosten (cost = costfactor*distance[m]) eines Abschnittes zeigt 
+# die Statsitik in http://brouter.de/brouter-web/ jeweils an.
+#
+# Am Ende der Datei, dort wo === Profil ANPASSEN === drüber steht, kann
+# man das Profil grob an die eigenen Bedürfnisse anpassen.
+#
+# ---------------------------------------------------------------------
+#
+
+---context:global   # following code refers to global config
+
+#
+#=============== Profil ANPASSEN ==================
+#
+assign MglLegal 	0	# 1 setzen, um möglichst legale Wege zu bevorzugen
+assign Abgeschieden 0	# 1 setzen, für Endurowandern in kaum erschlossenen Gegenden 
+
+#
+# ==================================================
+#
+
+# Hiermit wird der Routing Algorithmus verändert:
+# http://brouter.de/brouter/algorithm.html
+#
+# Werte für den ersten Koeffizienten:
+#  1 = exakte Berrechnung beim ersten Durchlauf
+#  => je größer der Wert desto schneller aber auch ungenauer die Berrechnung
+#
+# Werte für den zweiten Koeffizienten:
+#  0 = exakte Berrechnung mit Beschränkung des Suchgebiets über die Kosten der ersten Berrechnung
+# -1 = keine zweite Berrechnung, sinnvoll eigentlich nur bei "1" im ersten Durchlauf
+#
+# Hier eine schnelle, aber noch obiger Theorie ungenaue Berechnungsmethode. 
+# Bei mir ca. Faktor 2-4 schneller. Bei Routen, die Brouter im normalen Modus
+# nicht innerhalb von 60s berechnen konnte, lief die Berechnung hiermit
+# innerhalb von 20s durch!
+# Ergebnisse sind ersten Tests zufolge nicht nennenswert schlechter.
+# Im Zweifel auskommentieren.
+assign pass1coefficient 2		# Berrechnugscoeffizient für erste schnelle Berrechnung
+assign pass2coefficient -1		# Berrechnugscoeffizient für zweite exakte Berrechnung
+
+# the elevation parameters
+# cutoff ist die Steigung in %, ab der bestraft wird, aber wer will
+# schon Steigungen bestrafen? Also 0 Strafpunkte. Steigungen werden erst
+# ab 10m Steigungsstreckenlänge berücksichtigt. Negative Werte wirken nicht.
+#
+assign downhillcost 0
+assign downhillcutoff 1.5
+assign uphillcost 0
+assign uphillcutoff 1.5
+
+assign elevationmaxbuffer 10
+
+---context:way   # following code refers to way-tags
+#
+# "turncost" bestimmt, was es kostet, einen sehr engen Winkel zu fahren.
+# Die Winkelkosten sind: turncost * ( 1 - cos(winkel) )
+# cos(90°) = 0, also Höchststrafe für 90° Winkel.
+# Konkret entspricht der truncost-Wert damit den Kosten einer 90-Grad 
+# Biegung in Metern. turncost=100 => eine 90° Biegung wird wie eine
+# zusätzliche Strecke von 10mm gewertet.
+# 
+# Damit werden also in jedem Fall durchgehende Strecken bevorzugt, 
+# was aber für Enduro nicht hilfreich ist.
+# truncost wirkt besonders bei sehr enegen Kehren oder Abbiegungen,
+# weniger oder gar nicht bei Kurven.
+# Setzt man den Wert zu niedrig, werden auch gerne 180° Winkel
+# eingesetzt => also "umdrehen" wäre destöfteren angesagt, wenn man 
+# bestimmte Wegpunkte anfahren will.
+# Der Wert ist also stark abhängig von der Gegend, will man enge Kehren fahren,
+# sollte der Wert nahe 0 bleiben, auf dem flachen Land setzt man ihn eher
+# hoch an, um zumindest nicht zu oft umkehren zu müssen. Wenn man nur zwischen 
+# 2 Punkten navigiert, spielt das Umkehren aber keine Rolle.
+
+assign turncost 0
+
+#
+# Zugangsberechtigungen interessieren nicht:
+#
+assign defaultaccess 0
+
+assign WegeAlle
+	# Die Kosten werden pro Meter Wegstrecke erechnet.
+	# Sie werden abe rnicht addiert, sondenr brouter steigt aus diesem
+	# Abschnitt aus, sobald eine Bedingung wahr wird.
+	# => Spezielle Eeigenchaften eines Weges müssen oben stehen, sonst
+	# kommen sie nicht zur Geltung.
+	# => Allgemeime Angaben - etwa: Asphaltoberfläche - würden dazu führen,
+	# dass alle asphaltierten Wege gleich gewichtet werden, also Autobahnen
+	# und Feldwege (sofern denn das OSM Tag überhaupt angegeben ist).
+	# Die Eigenschaften eines Weges sollten also im Kontext dieses Weges
+	# stehen, also etwa "tracktype=grade1 AND surface=asphalt"
+    #
+    # Zum Verständnis:
+    # switch highway=track 
+    #		<switch Nähere Beschreibung(en) mit Strafpunkten falls zutreffend>
+    #		...
+	# 		<Strafpunkte falls keine der Beschreibungen zutrifft>
+	#
+    switch highway=track
+		# Das aussagekräftigste Kriterium dürfte vorliegen, wenn der Weg
+		# für MTB klassifiziert wurde, daher werte ich das zuerst aus.
+		# In den Alpen sind die viele Weg entsprechend klassifiziert.
+		# http://wiki.openstreetmap.org/wiki/DE:Key:mtb:scale
+		#
+		# Das ginge natürlich auch für Wanderwege, aber die sind zum
+		# Endurowandern eher ungeeignet:
+		# http://wiki.openstreetmap.org/wiki/DE:Key:sac_scale
+		#
+		# MTB-Scale 0 und 1 sind zum Endurowandern vermutlich gut geeignet,
+		# darüber ist es vielleicht eher für Sportfahrer.
+		# => entsprechend anpassen:
+		#
+		switch mtb:scale=0 1.0
+		switch mtb:scale=1 2.0
+		switch mtb:scale=2 4.0
+		switch mtb:scale=3 10.0
+		switch or mtb:scale=4 or mtb:scale=5 mtb:scale=6 20
+		
+		switch sac_scale=hiking 4.0
+		switch sac_scale=mountain_hiking 4.0
+		switch sac_scale=demanding_mountain_hiking 2.0
+		switch sac_scale=alpine_hiking 1.0
+		
+		
+		
+		#
+		# Die Oberflächenbeschaffenheit ist den OSM Karten eher selten 
+		# verzeichnet, wenn doch, ist sie meist aussagekräftiger als tracktype,
+		# daher zuvor auswerten:
+		#
+		switch or surface=paved or surface=cobblestone or surface=concrete surface=asphalt 3.5
+		switch surface=gravel 3.0
+		switch or surface=pebblestone surface=fine_gravel 2.5
+		switch or surface=ground or surface=dirt surface=earth or surface=grass 0.5
+		switch surface=sand 1.2
+		# 
+		# wenn all das nicht zutrifft, dann entscheiden wir nach Tracktype.
+		# Grundsätzlich bevorzuge ich schlechte Wege, je nach Gegend sind die Wege
+		# nach Grade 4-5 allerdings kaum noch als soche zu erkennen oder
+		# gar nicht (mehr?) vorhanden. Oder etwa in den Alpen nur noch 
+		# für Sportenduros zu befahren. 
+		#		
+		# Entsprechend der Gegend werden weiter unten Zusatzkosten addiert.
+		#
+		switch tracktype=grade1  3.0
+		switch tracktype=grade2  2.5
+		switch tracktype=grade3  1.5
+		switch tracktype=grade4  1.1
+		switch tracktype=grade5  1.0
+		# alle sonstigen Tracks:
+		2.5
+		
+	#
+	# Pfade
+	#
+	# zunächst ausgewiesene Fuß- und Radwege meiden:
+	switch highway=footway 						30 	
+    switch and highway=path foot=designated 	50   	
+	switch highway=cycleway						15
+	switch and highway=path bicycle=designated 	25 
+	
+	
+	#
+	#
+	# Naturschutzgebiete ausschließen
+	#
+	#
+	#switch boundary=protected_area 500
+	
+	
+	
+	#
+	# Die folgenden Werte für Pfade passen so für erschlossene Gegenden,
+	# weil es hier meist Fußwege sind, die ich eher nicht befahren
+	# will. Bei uns sind sogar die Friedhofswege in OSM verzeichnet!
+	# Wer in abgelegenen Gegenden gerne Singletrails fährt, muss
+	# diese Werte herabsetzen.
+	#
+    switch highway=path
+		#
+		# Fahrradverbot ist auch für Mopeds kein gutes Zeichen:
+		switch bicycle=no 30
+		#
+		# Spazierwege (route_foot_xxx) sind meist nicht zum Befahren geeignet,
+		# Wanderwege (route_hiking_xxx) schon eher, lasse ich daher raus
+		switch or route_foot_nwn=yes or route_foot_lwn=yes route_foot_rwn=yes 30 	
+		#
+		# Oberflächen:
+    	switch or surface=paved or surface=cobblestone or surface=concrete surface=asphalt 10 		
+		switch or surface=gravel or surface=pebblestone surface=fine_gravel 6.0							 
+		switch or surface=sand or surface=ground or surface=dirt or surface=earth surface=grass 4.5	
+		#
+		# sonstige Pfade (Zusatzkosten unten beachten!)
+		0
+    
+    #
+	# Straßen	
+	#
+	# Autobahnen:
+	switch or highway=motorway highway=motorway_link    20			
+	switch or highway=trunk highway=trunk_link          14
+	switch or highway=primary highway=primary_link      10	
+	switch or highway=secondary highway=secondary_link  8
+	switch or highway=tertiary highway=tertiary_link    6
+	switch highway=unclassified       					5
+	#
+	# stillgelegte oder im Bau befindliche Straßen
+	switch or highway=proposed highway=abandoned        3
+	#
+    # Wohngebiete, private Zufahrtswege u.ä. 				
+	switch highway=residential							6
+    switch highway=service 								8
+ 
+	# Da ich mich nicht um Zugangsrechte kümmere, müssen bestimmte Strecken 
+	# hier mit einer hohen Strafe belegt werden:
+	switch 	or railway=disused railway=abandoned		30
+	switch 	or not railway= not waterway=				100000		
+				
+	4 #sonstige Straßen und Wege
+
+# --------------------------
+# Zusatzkosten der Profile:
+#
+assign Zusatzkosten switch Abgeschieden
+#
+# falls die Variable "Abgeschieden" = 1 gesetzt ist, wird dieser Wert 
+# errechnet:
+#
+	# Kosten für schlechte Wege in wenig erschlossenen Gebieten höher setzen
+	# da diese Wege dort dann eher für Sportenduros taugen
+	# (Werte werden addiert)
+	#
+    switch highway=track 
+		switch tracktype=grade3  0.5
+		switch tracktype=grade4  2.0
+		switch tracktype=grade5  3.0
+		0
+		switch highway=path 		3.0
+	0 		# fuer Sonstiges nichts addieren
+#
+# .... sonst dieser für die in Deutschland eher typische urbane Umgebung:
+#
+	# Kosten für Pfade in gut erschlossenen Gegenden addieren, da man sie dort 
+	# eher seltener nutzen sollte:
+	#
+	switch highway=path 			6.0
+	0 		# fuer Sonstiges nichts addieren
+#
+# ... und der Variablen "Zusatzkosten" zugewiesen.
+#
+
+# --------------------------
+#
+# nur falls die Variable "MglLegal" = 1 gesetzt ist , wird der Wert 
+# errechnet und der Variablen "illegal" zugewiesen ...
+#
+assign illegal switch MglLegal 
+#
+# Soweit es in OSM angegebenist, werden hie rzu Zugangsberechtigungen ausgewertet.
+# Wenn diese egal sind => unter "assign costfactor" Kommentarzeichen einfügen
+# 
+    # Zugangsberechtigungen
+    #
+    switch 	or access=no or access=private or access=agricultural
+				or vehicle=no or vehicle=private or vehicle=agricultural or vehicle=destination 
+				or motorcar=no or motorcar=private or motorcar=agricultural
+				or motorcycle=no or motorcycle=private or motorcycle=agricultural
+				or motor_vehicle=no or motor_vehicle=private or motor_vehicle=agricultural or motor_vehicle=destination 
+				or horse=designated or bicycle=designated foot=designated
+              100 		# Der Wert hier wird mal 1000 gerechnet!
+	# Fuß-, Reit- und Radwege sowie Pfade verbieten
+	# 
+	switch highway=footway 						10000	
+	switch highway=bridleway 					10000	
+	switch highway=cycleway						10000
+	switch and highway=path 
+		or motorcar=yes or motor_vehicle=yes motorcycle=yes 0
+	switch highway=path							10000
+	0 		#wenn nichts angegeben
+0 # ... falls "MglLegal" = 0 gesetzt, werden 0 Kosten zugewiesen
+
+# 
+# Kosten addierenden:
+#
+assign costfactor
+	add WegeAlle
+	add Zusatzkosten	
+	add illegal 			
+0
+
+
+---context:node  # following code refers to node tags
+#
+# Nodes sind Eigenschaften eines Wegpunktes, nicht solche des gesamten Weges.
+# Also etwa Brücken, Kreuzungen, Hindernisse, Ampeln u.s.w. 
+# Aber auch der Anfang und das Ende eines Weges. 
+# Minimum sind also 2 Nodes (Ausnahme: Kreisverkehr), max 2000.
+# 
+# Barrieren gehen nur in diesem Kontext. Sind oft zu umfahren, daher
+# nicht komplett sperren.
+#
+#   === Node Kosten NICHT GETESTET ===
+#                    
+assign initialcost
+# Barrieren kosten, falls MglLegal=1 gesetzt ist, 10000 Punkte, sonst nur 2000, 0 wenn keine Angabe
+switch MglLegal 
+	switch or barrier=gate or barrier=bollard or barrier=lift_gate barrier=cycle_barrier 10000 2000
+	0
+
+
+	
